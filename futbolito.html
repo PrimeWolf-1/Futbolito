@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Futbolito</title>
+  <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js"></script>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #111;
+      font-family: 'Georgia', serif;
+      color: #f0e8d0;
+      overflow: hidden;
+    }
+
+    .screen {
+      display: none;
+      width: 100vw;
+      height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
+    }
+
+    /* ── Intro Screen ── */
+    #screen-intro {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #1a1a1a;
+    }
+
+    #screen-intro h1 {
+      font-size: clamp(4rem, 12vw, 9rem);
+      letter-spacing: 0.1em;
+      color: #f0e8d0;
+      text-transform: uppercase;
+      text-shadow:
+        0 0 20px rgba(240, 232, 208, 0.4),
+        4px 4px 0px #5a3e1b;
+      animation: zoomIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    #screen-intro p {
+      margin-top: 1.2rem;
+      font-size: 1rem;
+      letter-spacing: 0.25em;
+      color: #a08060;
+      text-transform: uppercase;
+      animation: fadeUp 0.8s 0.3s ease both;
+    }
+
+    @keyframes zoomIn {
+      from { transform: scale(0.6); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+
+    @keyframes fadeUp {
+      from { transform: translateY(12px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    /* ── Setup Screen ── */
+    #screen-setup {
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #181510;
+    }
+
+    #screen-setup h2 {
+      font-size: 2rem;
+      letter-spacing: 0.15em;
+      color: #c8a96e;
+      margin-bottom: 2rem;
+      text-transform: uppercase;
+    }
+
+    /* ── Game Screen ── */
+    #screen-game {
+      align-items: center;
+      justify-content: center;
+      background: #0e1a0e;
+    }
+
+    #screen-game canvas {
+      display: block;
+      background: #2a4a2a;
+      border: 3px solid #5a3e1b;
+    }
+
+    /* ── Win Screen ── */
+    #screen-win {
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #1a1a1a;
+    }
+
+    #screen-win h2 {
+      font-size: clamp(2rem, 6vw, 4rem);
+      letter-spacing: 0.12em;
+      color: #f0e8d0;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+
+    #screen-win p {
+      font-size: 1.2rem;
+      color: #a08060;
+      letter-spacing: 0.1em;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Intro Screen -->
+  <div id="screen-intro" class="screen">
+    <h1>Futbolito</h1>
+    <p>El juego del barrio</p>
+  </div>
+
+  <!-- Setup Screen -->
+  <div id="screen-setup" class="screen">
+    <h2>Setup</h2>
+    <p style="color:#a08060; letter-spacing:0.1em;">Player names + formations go here</p>
+  </div>
+
+  <!-- Game Screen -->
+  <div id="screen-game" class="screen">
+    <canvas id="game-canvas"></canvas>
+  </div>
+
+  <!-- Win Screen -->
+  <div id="screen-win" class="screen">
+    <h2>Winner!</h2>
+    <p>Final score goes here</p>
+  </div>
+
+  <script>
+    // ─────────────────────────────────────────────
+    // CONFIG — game constants
+    // ─────────────────────────────────────────────
+    const CONFIG = {
+      CANVAS_WIDTH: 900,
+      CANVAS_HEIGHT: 600,
+      MAX_SPEED: 18,
+      MAX_DRAG_DISTANCE: 120,
+      VELOCITY_THRESHOLD: 0.5,
+    };
+
+    // ─────────────────────────────────────────────
+    // STATE — single source of truth
+    // ─────────────────────────────────────────────
+    const STATE = {
+      playerNames: ['', ''],
+      playerFormations: [null, null],
+      scores: [0, 0],
+      activePlayer: 0,
+      turnStartTime: null,
+      idleGlowActive: false,
+      isDragging: false,
+      dragCurrent: null,
+      aimTarget: null,
+      marbleDirty: false,
+      marbleTrail: [],
+      droppingContactHandled: false,
+      celebrationActive: false,
+      celebrationStartTime: null,
+      celebrationTimer: null,
+      confettiParticles: [],
+      nailJumpActive: false,
+      pendingWin: null,
+      birdActive: false,
+      birdFrame: 0,
+      bird: { x: 0, y: 0, hasDropped: false },
+      dropping: null,
+      droppingTimer: null,
+      boardSkin: null,
+      ambientScene: null,
+    };
+
+    // ─────────────────────────────────────────────
+    // Screens — show/hide controller
+    // ─────────────────────────────────────────────
+    const Screens = {
+      show(id) {
+        document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
+        const target = document.getElementById(id);
+        if (target) {
+          target.style.display = 'flex';
+        }
+      }
+    };
+
+    // ─────────────────────────────────────────────
+    // Canvas setup
+    // ─────────────────────────────────────────────
+    const canvas = document.getElementById('game-canvas');
+    canvas.width = CONFIG.CANVAS_WIDTH;
+    canvas.height = CONFIG.CANVAS_HEIGHT;
+    const ctx = canvas.getContext('2d');
+
+  </script>
+</body>
+</html>
