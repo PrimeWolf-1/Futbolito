@@ -83,6 +83,122 @@
       text-transform: uppercase;
     }
 
+    .setup-columns {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-around;
+      width: 100%;
+      max-width: 820px;
+      gap: 2rem;
+    }
+
+    .player-column {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      flex: 1;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(200, 169, 110, 0.2);
+      border-radius: 6px;
+      padding: 1.5rem 1rem;
+    }
+
+    .player-column h3 {
+      font-size: 1.1rem;
+      letter-spacing: 0.2em;
+      color: #c8a96e;
+      text-transform: uppercase;
+    }
+
+    .player-column input[type="text"] {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      background: #0e0c09;
+      border: 1px solid #5a4a30;
+      border-radius: 4px;
+      color: #f0e8d0;
+      font-family: 'Georgia', serif;
+      font-size: 0.95rem;
+      letter-spacing: 0.05em;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .player-column input[type="text"]:focus {
+      border-color: #c8a96e;
+    }
+
+    .player-column input[type="text"]::placeholder {
+      color: #5a4a30;
+    }
+
+    .formation-cards {
+      display: flex;
+      flex-direction: row;
+      gap: 0.75rem;
+    }
+
+    .formation-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.5rem;
+      background: #0e0c09;
+      border: 2px solid #3a2e1a;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      user-select: none;
+    }
+
+    .formation-card:hover {
+      border-color: #7a6040;
+      background: #141008;
+    }
+
+    .formation-card.selected {
+      border-color: #f4a261;
+      background: #1a1005;
+    }
+
+    .formation-card span {
+      font-size: 0.8rem;
+      letter-spacing: 0.1em;
+      color: #a08060;
+      text-transform: uppercase;
+    }
+
+    .formation-card.selected span {
+      color: #f4a261;
+    }
+
+    .formation-card canvas {
+      display: block;
+      border-radius: 3px;
+    }
+
+    #start-match {
+      margin-top: 2rem;
+      padding: 0.75rem 2.5rem;
+      font-family: 'Georgia', serif;
+      font-size: 1rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #f0e8d0;
+      background: #3a2a10;
+      border: 2px solid #c8a96e;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    #start-match:hover {
+      background: #c8a96e;
+      color: #0e0c09;
+    }
+
     /* ── Game Screen ── */
     #screen-game {
       align-items: center;
@@ -129,8 +245,40 @@
 
   <!-- Setup Screen -->
   <div id="screen-setup" class="screen">
-    <h2>Setup</h2>
-    <p style="color:#a08060; letter-spacing:0.1em;">Player names + formations go here</p>
+    <h2>Match Setup</h2>
+    <div class="setup-columns">
+      <!-- Player 1 -->
+      <div class="player-column" id="player1-col">
+        <h3>Player 1</h3>
+        <input type="text" id="player1-name" placeholder="Enter name" />
+        <div class="formation-cards">
+          <div class="formation-card" data-formation="4-3-3">
+            <span>4-3-3</span>
+            <canvas width="120" height="80"></canvas>
+          </div>
+          <div class="formation-card" data-formation="3-5-2">
+            <span>3-5-2</span>
+            <canvas width="120" height="80"></canvas>
+          </div>
+        </div>
+      </div>
+      <!-- Player 2 -->
+      <div class="player-column" id="player2-col">
+        <h3>Player 2</h3>
+        <input type="text" id="player2-name" placeholder="Enter name" />
+        <div class="formation-cards">
+          <div class="formation-card" data-formation="4-3-3">
+            <span>4-3-3</span>
+            <canvas width="120" height="80"></canvas>
+          </div>
+          <div class="formation-card" data-formation="3-5-2">
+            <span>3-5-2</span>
+            <canvas width="120" height="80"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    <button id="start-match">Start Match</button>
   </div>
 
   <!-- Game Screen -->
@@ -188,6 +336,24 @@
     };
 
     // ─────────────────────────────────────────────
+    // Formations — normalized [0,1] coords per player half
+    // ─────────────────────────────────────────────
+    const Formations = {
+      "4-3-3": [
+        { x: 0.1, y: 0.5 },
+        { x: 0.3, y: 0.2 }, { x: 0.3, y: 0.4 }, { x: 0.3, y: 0.6 }, { x: 0.3, y: 0.8 },
+        { x: 0.55, y: 0.25 }, { x: 0.55, y: 0.5 }, { x: 0.55, y: 0.75 },
+        { x: 0.75, y: 0.2 }, { x: 0.75, y: 0.5 }, { x: 0.75, y: 0.8 },
+      ],
+      "3-5-2": [
+        { x: 0.1, y: 0.5 },
+        { x: 0.3, y: 0.25 }, { x: 0.3, y: 0.5 }, { x: 0.3, y: 0.75 },
+        { x: 0.52, y: 0.1 }, { x: 0.52, y: 0.3 }, { x: 0.52, y: 0.5 }, { x: 0.52, y: 0.7 }, { x: 0.52, y: 0.9 },
+        { x: 0.75, y: 0.35 }, { x: 0.75, y: 0.65 },
+      ],
+    };
+
+    // ─────────────────────────────────────────────
     // Screens — show/hide controller
     // ─────────────────────────────────────────────
     const Screens = {
@@ -234,29 +400,8 @@
       label: 'marble',
     });
 
-    // Hardcoded test nails — 4-3-3 formation on left half only (item 2 test only)
-    const Formations = {
-      "4-3-3": [
-        { x: 0.1, y: 0.5 },
-        { x: 0.3, y: 0.2 }, { x: 0.3, y: 0.4 }, { x: 0.3, y: 0.6 }, { x: 0.3, y: 0.8 },
-        { x: 0.55, y: 0.25 }, { x: 0.55, y: 0.5 }, { x: 0.55, y: 0.75 },
-        { x: 0.75, y: 0.2 }, { x: 0.75, y: 0.5 }, { x: 0.75, y: 0.8 },
-      ],
-    };
-
-    const halfWidth = CONFIG.CANVAS_WIDTH / 2;
-    const testNails = Formations["4-3-3"].map(pos => {
-      const px = halfWidth * pos.x; // left half only (player 1)
-      const py = CONFIG.CANVAS_HEIGHT * pos.y;
-      return Bodies.circle(px, py, 8, {
-        isStatic: true,
-        restitution: 0.7,
-        label: 'nail',
-      });
-    });
-
-    // Add all bodies to world
-    Composite.add(world, [wallTop, wallBottom, wallLeft, wallRight, goalP1, goalP2, marble, ...testNails]);
+    // Add static bodies only (no nails yet — they're created in Game.init())
+    Composite.add(world, [wallTop, wallBottom, wallLeft, wallRight, goalP1, goalP2, marble]);
 
     // Speed cap — enforced each frame
     const MAX_SPEED = CONFIG.MAX_SPEED;
@@ -396,6 +541,8 @@
     // Game loop
     // ─────────────────────────────────────────────
     function gameLoop() {
+      if (!Game._loopRunning) return;
+
       // Update physics
       Engine.update(engine, 1000 / 60);
 
@@ -421,9 +568,131 @@
       requestAnimationFrame(gameLoop);
     }
 
-    // Show game screen and start loop immediately (for item 2 testing)
-    Screens.show('screen-game');
-    gameLoop();
+    // ─────────────────────────────────────────────
+    // Game — init and loop control
+    // ─────────────────────────────────────────────
+    const Game = {
+      _loopRunning: false,
+
+      init() {
+        // Clear existing nail bodies from world
+        const nailBodies = Composite.allBodies(world).filter(b => b.label === 'nail');
+        nailBodies.forEach(nail => Composite.remove(world, nail));
+
+        // Create nail bodies for both players
+        const halfWidth = CONFIG.CANVAS_WIDTH / 2;
+        [STATE.playerFormations[0], STATE.playerFormations[1]].forEach((formKey, playerIdx) => {
+          const coords = Formations[formKey];
+          coords.forEach(coord => {
+            let px, py;
+            if (playerIdx === 0) {
+              px = coord.x * halfWidth;
+              py = coord.y * CONFIG.CANVAS_HEIGHT;
+            } else {
+              // Player 2 mirrored
+              const mirroredX = 1 - coord.x;
+              px = mirroredX * halfWidth + halfWidth;
+              py = coord.y * CONFIG.CANVAS_HEIGHT;
+            }
+            const nail = Bodies.circle(px, py, 8, {
+              isStatic: true,
+              restitution: 0.7,
+              label: 'nail',
+            });
+            Composite.add(world, nail);
+          });
+        });
+
+        // Assign board skin and scene randomly
+        STATE.boardSkin = Math.random() < 0.5 ? 'worn-felt' : 'rustic-wood';
+        STATE.ambientScene = Math.random() < 0.5 ? 'backyard' : 'street-night';
+
+        // Reset marble to center
+        Body.setPosition(marble, { x: CONFIG.CANVAS_WIDTH / 2, y: CONFIG.CANVAS_HEIGHT / 2 });
+        Body.setVelocity(marble, { x: 0, y: 0 });
+
+        // Set initial turn state
+        STATE.activePlayer = 0;
+        STATE.turnStartTime = Date.now();
+        STATE.scores = [0, 0];
+
+        // Show game screen and start loop
+        Screens.show('screen-game');
+        if (!Game._loopRunning) {
+          Game._loopRunning = true;
+          gameLoop();
+        }
+      },
+    };
+
+    // ─────────────────────────────────────────────
+    // Setup — formation preview + form handling
+    // ─────────────────────────────────────────────
+    const Setup = {
+      selectedFormations: [null, null],
+
+      init() {
+        // Draw formation previews on all mini canvases
+        document.querySelectorAll('.formation-card').forEach(card => {
+          const formKey = card.dataset.formation;
+          const miniCanvas = card.querySelector('canvas');
+          this.drawPreview(miniCanvas, formKey);
+        });
+
+        // Formation card click handlers — Player 1
+        document.querySelectorAll('#player1-col .formation-card').forEach(card => {
+          card.addEventListener('click', () => {
+            document.querySelectorAll('#player1-col .formation-card').forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+            Setup.selectedFormations[0] = card.dataset.formation;
+          });
+        });
+
+        // Formation card click handlers — Player 2
+        document.querySelectorAll('#player2-col .formation-card').forEach(card => {
+          card.addEventListener('click', () => {
+            document.querySelectorAll('#player2-col .formation-card').forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+            Setup.selectedFormations[1] = card.dataset.formation;
+          });
+        });
+
+        // Start match button
+        document.getElementById('start-match').addEventListener('click', () => {
+          const name1 = document.getElementById('player1-name').value.trim();
+          const name2 = document.getElementById('player2-name').value.trim();
+          if (!name1 || !name2 || !Setup.selectedFormations[0] || !Setup.selectedFormations[1]) return;
+          STATE.playerNames = [name1, name2];
+          STATE.playerFormations = [...Setup.selectedFormations];
+          Game.init();
+        });
+      },
+
+      drawPreview(miniCanvas, formKey) {
+        const ctx2 = miniCanvas.getContext('2d');
+        ctx2.clearRect(0, 0, miniCanvas.width, miniCanvas.height);
+        ctx2.fillStyle = '#2d5a1b';
+        ctx2.fillRect(0, 0, miniCanvas.width, miniCanvas.height);
+        const coords = Formations[formKey];
+        coords.forEach(coord => {
+          ctx2.beginPath();
+          ctx2.arc(coord.x * miniCanvas.width, coord.y * miniCanvas.height, 4, 0, Math.PI * 2);
+          ctx2.fillStyle = '#888';
+          ctx2.fill();
+        });
+      },
+    };
+
+    // ─────────────────────────────────────────────
+    // Boot — show intro, wire click-through, init setup
+    // ─────────────────────────────────────────────
+    Screens.show('screen-intro');
+
+    document.getElementById('screen-intro').addEventListener('click', () => {
+      Screens.show('screen-setup');
+    });
+
+    Setup.init();
 
   </script>
 </body>
