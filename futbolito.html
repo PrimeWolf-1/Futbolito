@@ -201,9 +201,25 @@
 
     /* ── Game Screen ── */
     #screen-game {
+      position: relative;
       align-items: center;
       justify-content: center;
       background: #0e1a0e;
+    }
+
+    #scoreboard {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      font-size: 1.4rem;
+      padding: 6px 20px;
+      border-radius: 6px;
+      font-family: monospace;
+      letter-spacing: 2px;
+      pointer-events: none;
     }
 
     #screen-game canvas {
@@ -283,6 +299,7 @@
 
   <!-- Game Screen -->
   <div id="screen-game" class="screen">
+    <div id="scoreboard"></div>
     <canvas id="game-canvas"></canvas>
   </div>
 
@@ -318,6 +335,7 @@
       dragCurrent: null,
       aimTarget: null,
       marbleDirty: false,
+      marbleWasMoving: false,
       marbleTrail: [],
       droppingContactHandled: false,
       celebrationActive: false,
@@ -531,9 +549,29 @@
       });
     }
 
-    // Stub functions — implemented in later items
-    function drawAimLine()     {}
-    function drawIdleGlow()    {}
+    function drawAimLine() {
+      if (!STATE.isDragging || !STATE.aimTarget) return;
+      ctx.save();
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(marble.position.x, marble.position.y);
+      ctx.lineTo(STATE.aimTarget.x, STATE.aimTarget.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    function drawIdleGlow() {
+      if (!STATE.idleGlowActive) return;
+      const pulse = 0.4 + 0.4 * Math.sin(Date.now() / 200);
+      ctx.beginPath();
+      ctx.arc(marble.position.x, marble.position.y, 20, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(80, 220, 80, ${pulse})`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
     function drawCelebration() {}
     function drawBird()        {}
 
@@ -552,6 +590,20 @@
       if (speed > MAX_SPEED) {
         const scale = MAX_SPEED / speed;
         Body.setVelocity(marble, { x: vel.x * scale, y: vel.y * scale });
+      }
+
+      // Turn flow — track marble movement and switch turns when it stops
+      if (speed > CONFIG.VELOCITY_THRESHOLD && !STATE.isDragging) {
+        STATE.marbleWasMoving = true;
+      }
+      if (STATE.marbleWasMoving && speed < CONFIG.VELOCITY_THRESHOLD && !STATE.isDragging) {
+        STATE.marbleWasMoving = false;
+        Game.endTurn();
+      }
+
+      // Idle check — glow after 5 seconds of inactivity
+      if (STATE.turnStartTime && Date.now() - STATE.turnStartTime > 5000 && !STATE.isDragging) {
+        STATE.idleGlowActive = true;
       }
 
       // Clear and redraw
@@ -616,6 +668,9 @@
         STATE.turnStartTime = Date.now();
         STATE.scores = [0, 0];
 
+        // Update scoreboard
+        document.getElementById('scoreboard').textContent = `${STATE.playerNames[0]} 0 — ${STATE.playerNames[1]} 0`;
+
         // Show game screen and start loop
         Screens.show('screen-game');
         if (!Game._loopRunning) {
@@ -623,7 +678,104 @@
           gameLoop();
         }
       },
+
+      endTurn() {
+        STATE.marbleDirty = false;
+        STATE.activePlayer = 1 - STATE.activePlayer;
+        STATE.turnStartTime = Date.now();
+        STATE.idleGlowActive = false;
+        Body.set(marble, 'frictionAir', 0.015);
+        STATE.droppingContactHandled = false;
+      },
     };
+
+    // ─────────────────────────────────────────────
+    // Slingshot — mouse input handlers
+    // ─────────────────────────────────────────────
+    canvas.addEventListener('mousedown', (e) => {
+      if (!Game._loopRunning) return;
+
+      // Only allow drag if marble is not already moving
+      const vel = marble.velocity;
+      const speed = Math.sqrt(vel.x ** 2 + vel.y ** 2);
+      if (speed >= CONFIG.VELOCITY_THRESHOLD) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const dx = mouseX - marble.position.x;
+      const dy = mouseY - marble.position.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < marble.circleRadius + 4) {
+        STATE.isDragging = true;
+        STATE.dragStart = { x: marble.position.x, y: marble.position.y };
+        STATE.dragCurrent = { x: mouseX, y: mouseY };
+      }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (!STATE.isDragging) return;
+
+      const rect = canvas.getBoundingClientRect();
+      STATE.dragCurrent = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+
+      const aimVector = {
+        x: marble.position.x - STATE.dragCurrent.x,
+        y: marble.position.y - STATE.dragCurrent.y,
+      };
+      let magnitude = Math.sqrt(aimVector.x ** 2 + aimVector.y ** 2);
+
+      if (magnitude > CONFIG.MAX_DRAG_DISTANCE) {
+        const scale = CONFIG.MAX_DRAG_DISTANCE / magnitude;
+        aimVector.x *= scale;
+        aimVector.y *= scale;
+        magnitude = CONFIG.MAX_DRAG_DISTANCE;
+      }
+
+      STATE.aimTarget = {
+        x: marble.position.x + aimVector.x,
+        y: marble.position.y + aimVector.y,
+      };
+    });
+
+    canvas.addEventListener('mouseup', (e) => {
+      if (!STATE.isDragging) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const aimVector = {
+        x: marble.position.x - mouseX,
+        y: marble.position.y - mouseY,
+      };
+      let magnitude = Math.sqrt(aimVector.x ** 2 + aimVector.y ** 2);
+
+      if (magnitude > CONFIG.MAX_DRAG_DISTANCE) {
+        const scale = CONFIG.MAX_DRAG_DISTANCE / magnitude;
+        aimVector.x *= scale;
+        aimVector.y *= scale;
+        magnitude = CONFIG.MAX_DRAG_DISTANCE;
+      }
+
+      if (magnitude > 0) {
+        const power = magnitude / CONFIG.MAX_DRAG_DISTANCE;
+        const velocity = {
+          x: (aimVector.x / magnitude) * power * CONFIG.MAX_SPEED,
+          y: (aimVector.y / magnitude) * power * CONFIG.MAX_SPEED,
+        };
+        Body.setVelocity(marble, velocity);
+        STATE.marbleDirty = true;
+      }
+
+      STATE.isDragging = false;
+      STATE.idleGlowActive = false;
+      STATE.dragCurrent = null;
+      STATE.aimTarget = null;
+      STATE.turnStartTime = Date.now(); // reset idle timer on each shot
+    });
 
     // ─────────────────────────────────────────────
     // Setup — formation preview + form handling
