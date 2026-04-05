@@ -30,41 +30,93 @@
 
     /* ── Intro Screen ── */
     #screen-intro {
+      position: relative;
+      overflow: hidden;
+      background: #0a0a0a;
+      cursor: pointer;
+    }
+
+    #intro-stadium {
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(ellipse at 50% 40%, #2d5a1b 0%, #1a3a10 30%, #0d2008 60%, #050e03 100%),
+        repeating-radial-gradient(circle at 50% 50%, transparent 0px, transparent 12px, rgba(255,255,255,0.03) 12px, rgba(255,255,255,0.03) 13px);
+    }
+
+    #intro-board {
+      position: absolute;
+      inset: 0;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: #1a1a1a;
+      background: radial-gradient(ellipse at 50% 50%,
+        #3d7a28 0%,
+        #2d5a1b 40%,
+        #1a3a10 70%,
+        #0d2008 100%
+      );
+      opacity: 0;
     }
 
-    #screen-intro h1 {
-      font-size: clamp(4rem, 12vw, 9rem);
-      letter-spacing: 0.1em;
-      color: #f0e8d0;
-      text-transform: uppercase;
+    .intro-board-inner {
+      text-align: center;
+    }
+
+    .intro-title {
+      font-size: 5rem;
+      font-weight: 900;
+      font-family: Impact, 'Arial Black', sans-serif;
+      color: #f4e8c1;
+      letter-spacing: 12px;
       text-shadow:
-        0 0 20px rgba(240, 232, 208, 0.4),
-        4px 4px 0px #5a3e1b;
-      animation: zoomIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
-    }
-
-    #screen-intro p {
-      margin-top: 1.2rem;
-      font-size: 1rem;
-      letter-spacing: 0.25em;
-      color: #a08060;
+        0 0 30px rgba(244, 232, 193, 0.4),
+        2px 2px 0 rgba(0,0,0,0.8);
       text-transform: uppercase;
-      animation: fadeUp 0.8s 0.3s ease both;
     }
 
-    @keyframes zoomIn {
-      from { transform: scale(0.6); opacity: 0; }
-      to   { transform: scale(1);   opacity: 1; }
+    .intro-subtitle {
+      font-size: 1.2rem;
+      font-family: monospace;
+      color: #a89060;
+      letter-spacing: 8px;
+      margin-top: 8px;
+      text-transform: lowercase;
     }
 
-    @keyframes fadeUp {
-      from { transform: translateY(12px); opacity: 0; }
-      to   { transform: translateY(0);    opacity: 1; }
+    .intro-skip-hint {
+      position: absolute;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.3);
+      letter-spacing: 3px;
+      animation: fadeInHint 1s ease 0.5s both;
+    }
+
+    @keyframes fadeInHint {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    @keyframes introDive {
+      0%   { transform: scale(1) translateY(0);     opacity: 0.7; }
+      60%  { transform: scale(4) translateY(-10%);  opacity: 1; }
+      100% { transform: scale(12) translateY(-20%); opacity: 0; }
+    }
+
+    @keyframes stadiumFadeOut {
+      0%   { opacity: 1; }
+      40%  { opacity: 0.8; }
+      100% { opacity: 0; }
+    }
+
+    @keyframes boardFadeIn {
+      0%   { opacity: 0; }
+      50%  { opacity: 0; }
+      100% { opacity: 1; }
     }
 
     /* ── Setup Screen ── */
@@ -320,8 +372,14 @@
 
   <!-- Intro Screen -->
   <div id="screen-intro" class="screen">
-    <h1>Futbolito</h1>
-    <p>El juego del barrio</p>
+    <div id="intro-stadium"></div>
+    <div id="intro-board">
+      <div class="intro-board-inner">
+        <div class="intro-title">FUTBOLITO</div>
+        <div class="intro-subtitle">El juego del barrio</div>
+      </div>
+    </div>
+    <div class="intro-skip-hint">click or press any key to skip</div>
   </div>
 
   <!-- Setup Screen -->
@@ -1389,15 +1447,49 @@
     };
 
     // ─────────────────────────────────────────────
-    // Boot — show intro, wire click-through, init setup
+    // Intro cinematic
+    // ─────────────────────────────────────────────
+    const Intro = {
+      _clickHandler: null,
+      _keyHandler: null,
+
+      start() {
+        const stadium = document.getElementById('intro-stadium');
+        const board = document.getElementById('intro-board');
+
+        stadium.style.animation = 'stadiumFadeOut 4.5s ease forwards';
+        board.style.animation = 'boardFadeIn 4.5s ease forwards, introDive 4.5s ease forwards';
+
+        this._clickHandler = () => this.skip();
+        this._keyHandler = () => this.skip();
+        document.addEventListener('click', this._clickHandler);
+        document.addEventListener('keydown', this._keyHandler);
+
+        board.addEventListener('animationend', (e) => {
+          if (e.animationName === 'introDive') this.skip();
+        }, { once: true });
+      },
+
+      skip() {
+        document.removeEventListener('click', this._clickHandler);
+        document.removeEventListener('keydown', this._keyHandler);
+
+        const stadium = document.getElementById('intro-stadium');
+        const board = document.getElementById('intro-board');
+        stadium.style.animation = 'none';
+        board.style.animation = 'none';
+
+        Screens.show('screen-setup');
+      }
+    };
+
+    // ─────────────────────────────────────────────
+    // Boot — show intro, init setup
     // ─────────────────────────────────────────────
     Screens.show('screen-intro');
 
-    document.getElementById('screen-intro').addEventListener('click', () => {
-      Screens.show('screen-setup');
-    });
-
     Setup.init();
+    Intro.start();
 
     // Play Again — reset game and return to setup with names pre-filled
     document.getElementById('play-again').addEventListener('click', () => {
