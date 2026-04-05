@@ -316,7 +316,7 @@
     const CONFIG = {
       CANVAS_WIDTH: 900,
       CANVAS_HEIGHT: 600,
-      MAX_SPEED: 18,
+      MAX_SPEED: 30,
       MAX_DRAG_DISTANCE: 120,
       VELOCITY_THRESHOLD: 0.5,
     };
@@ -393,6 +393,22 @@
     const ctx = canvas.getContext('2d');
 
     // ─────────────────────────────────────────────
+    // Grain texture — generated once into offscreen canvas
+    // ─────────────────────────────────────────────
+    const grainCanvas = document.createElement('canvas');
+    grainCanvas.width = CONFIG.CANVAS_WIDTH;
+    grainCanvas.height = CONFIG.CANVAS_HEIGHT;
+    const grainCtx = grainCanvas.getContext('2d');
+    for (let i = 0; i < 1200; i++) {
+      const gx = Math.random() * CONFIG.CANVAS_WIDTH;
+      const gy = Math.random() * CONFIG.CANVAS_HEIGHT;
+      grainCtx.beginPath();
+      grainCtx.arc(gx, gy, Math.random() * 1.5, 0, Math.PI * 2);
+      grainCtx.fillStyle = `rgba(0,0,0,${Math.random() * 0.1})`;
+      grainCtx.fill();
+    }
+
+    // ─────────────────────────────────────────────
     // Physics engine — Matter.js
     // ─────────────────────────────────────────────
     const { Engine, Bodies, Body, Composite, Events } = Matter;
@@ -428,74 +444,170 @@
     // Renderer — draw functions
     // ─────────────────────────────────────────────
 
+    function drawStringSegment(ctx, x1, y1, x2, y2) {
+      // Shadow
+      ctx.beginPath();
+      ctx.moveTo(x1 + 1, y1 + 1);
+      ctx.lineTo(x2 + 1, y2 + 1);
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      // String body
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.strokeStyle = '#d4c9a8';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Highlight
+      ctx.beginPath();
+      ctx.moveTo(x1 - 0.5, y1 - 0.5);
+      ctx.lineTo(x2 - 0.5, y2 - 0.5);
+      ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    function drawStringBorder() {
+      const pad = 12;
+      const cy = CONFIG.CANVAS_HEIGHT / 2;
+      const W = CONFIG.CANVAS_WIDTH;
+      const H = CONFIG.CANVAS_HEIGHT;
+
+      // Top border
+      drawStringSegment(ctx, pad, pad, W - pad, pad);
+      // Bottom border
+      drawStringSegment(ctx, pad, H - pad, W - pad, H - pad);
+      // Left border (split around goal)
+      drawStringSegment(ctx, pad, pad, pad, cy - 30);
+      drawStringSegment(ctx, pad, cy + 30, pad, H - pad);
+      // Right border (split around goal)
+      drawStringSegment(ctx, W - pad, pad, W - pad, cy - 30);
+      drawStringSegment(ctx, W - pad, cy + 30, W - pad, H - pad);
+
+      // Goal mouth posts — metallic circles at each goal corner
+      [[pad, cy - 30], [pad, cy + 30]].forEach(([px, py]) => {
+        const postGrad = ctx.createRadialGradient(px - 2, py - 2, 1, px, py, 5);
+        postGrad.addColorStop(0, '#d0c8b8');
+        postGrad.addColorStop(1, '#6a6050');
+        ctx.beginPath();
+        ctx.arc(px, py, 5, 0, Math.PI * 2);
+        ctx.fillStyle = postGrad;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      });
+      [[W - pad, cy - 30], [W - pad, cy + 30]].forEach(([px, py]) => {
+        const postGrad = ctx.createRadialGradient(px - 2, py - 2, 1, px, py, 5);
+        postGrad.addColorStop(0, '#d0c8b8');
+        postGrad.addColorStop(1, '#6a6050');
+        ctx.beginPath();
+        ctx.arc(px, py, 5, 0, Math.PI * 2);
+        ctx.fillStyle = postGrad;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      });
+    }
+
+    function drawFieldLines() {
+      const W = CONFIG.CANVAS_WIDTH;
+      const H = CONFIG.CANVAS_HEIGHT;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = 1.5;
+
+      // Center line (vertical)
+      ctx.beginPath();
+      ctx.moveTo(450, 30);
+      ctx.lineTo(450, 570);
+      ctx.stroke();
+
+      // Center circle
+      ctx.beginPath();
+      ctx.arc(450, 300, 60, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Center spot
+      ctx.beginPath();
+      ctx.arc(450, 300, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Left penalty area
+      ctx.beginPath();
+      ctx.strokeRect(30, 180, 130, 240);
+
+      // Right penalty area
+      ctx.beginPath();
+      ctx.strokeRect(740, 180, 130, 240);
+
+      // Left goal area (6-yard box)
+      ctx.beginPath();
+      ctx.strokeRect(30, 240, 60, 120);
+
+      // Right goal area
+      ctx.beginPath();
+      ctx.strokeRect(810, 240, 60, 120);
+
+      // Left penalty spot
+      ctx.beginPath();
+      ctx.arc(120, 300, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Right penalty spot
+      ctx.beginPath();
+      ctx.arc(780, 300, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Corner arcs
+      // Top-left
+      ctx.beginPath();
+      ctx.arc(30, 30, 15, 0, Math.PI / 2);
+      ctx.stroke();
+      // Top-right
+      ctx.beginPath();
+      ctx.arc(W - 30, 30, 15, Math.PI / 2, Math.PI);
+      ctx.stroke();
+      // Bottom-left
+      ctx.beginPath();
+      ctx.arc(30, H - 30, 15, -Math.PI / 2, 0);
+      ctx.stroke();
+      // Bottom-right
+      ctx.beginPath();
+      ctx.arc(W - 30, H - 30, 15, Math.PI, Math.PI * 1.5);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
     function drawBoard() {
       const W = CONFIG.CANVAS_WIDTH;
       const H = CONFIG.CANVAS_HEIGHT;
-      const BORDER_INSET = 8;
       const GOAL_WIDTH = 60;
-      const GOAL_HEIGHT = 20; // visual thickness of goal mouth cutout area
 
       // Fill board with worn-felt green
       ctx.fillStyle = '#2d5a1b';
       ctx.fillRect(0, 0, W, H);
 
-      // Nylon string border — 4 lines 8px inside edges, off-white, lineWidth 3
-      ctx.strokeStyle = '#e8dcc8';
-      ctx.lineWidth = 3;
+      // Grain texture
+      ctx.drawImage(grainCanvas, 0, 0);
 
+      // Field lines (under nails/marble)
+      drawFieldLines();
+
+      // Goal mouth visual — draw a slightly darker rect inside each cutout
       const goalCenterY = H / 2;
-      const goalHalf = GOAL_WIDTH / 2;
-
-      // Top border — full width
-      ctx.beginPath();
-      ctx.moveTo(BORDER_INSET, BORDER_INSET);
-      ctx.lineTo(W - BORDER_INSET, BORDER_INSET);
-      ctx.stroke();
-
-      // Bottom border — full width
-      ctx.beginPath();
-      ctx.moveTo(BORDER_INSET, H - BORDER_INSET);
-      ctx.lineTo(W - BORDER_INSET, H - BORDER_INSET);
-      ctx.stroke();
-
-      // Left border — with goal cutout gap
-      ctx.beginPath();
-      ctx.moveTo(BORDER_INSET, BORDER_INSET);
-      ctx.lineTo(BORDER_INSET, goalCenterY - goalHalf);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(BORDER_INSET, goalCenterY + goalHalf);
-      ctx.lineTo(BORDER_INSET, H - BORDER_INSET);
-      ctx.stroke();
-
-      // Right border — with goal cutout gap
-      ctx.beginPath();
-      ctx.moveTo(W - BORDER_INSET, BORDER_INSET);
-      ctx.lineTo(W - BORDER_INSET, goalCenterY - goalHalf);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(W - BORDER_INSET, goalCenterY + goalHalf);
-      ctx.lineTo(W - BORDER_INSET, H - BORDER_INSET);
-      ctx.stroke();
-
-      // Goal mouth visual — draw a slightly darker rect inside the cutout so it reads as a pocket
       ctx.fillStyle = '#1a3a0a';
-      // Left goal mouth
-      ctx.fillRect(0, goalCenterY - goalHalf, BORDER_INSET + 4, GOAL_WIDTH);
-      // Right goal mouth
-      ctx.fillRect(W - BORDER_INSET - 4, goalCenterY - goalHalf, BORDER_INSET + 4, GOAL_WIDTH);
+      ctx.fillRect(0, goalCenterY - GOAL_WIDTH / 2, 16, GOAL_WIDTH);
+      ctx.fillRect(W - 16, goalCenterY - GOAL_WIDTH / 2, 16, GOAL_WIDTH);
 
-      // Center line — subtle dashed midfield line
-      ctx.save();
-      ctx.strokeStyle = 'rgba(232,220,200,0.2)';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([8, 8]);
-      ctx.beginPath();
-      ctx.moveTo(W / 2, BORDER_INSET);
-      ctx.lineTo(W / 2, H - BORDER_INSET);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.restore();
+      // Nylon string border
+      drawStringBorder();
     }
 
     function drawMarble() {
@@ -534,18 +646,56 @@
     }
 
     function drawNails() {
-      // Draws all nail bodies as grey circles
       const bodies = Composite.allBodies(world);
       bodies.forEach(body => {
         if (body.label !== 'nail') return;
-        const pos = body.position;
+
+        const x = body.position.x;
+        const y = body.position.y;
+        const r = 10; // visual radius (slightly bigger than physics radius 8)
+
+        // Determine team color
+        const isP2 = body.playerIndex === 1;
+        const colorLight = isP2 ? '#e07a7a' : '#7ab3e0';
+        const colorDark  = isP2 ? '#7a1a1a' : '#1a4a7a';
+        const colorMid   = isP2 ? '#c04040' : '#2a6aaa';
+
+        // 1. Wood dent/shadow around nail base
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, 8, 0, Math.PI * 2);
-        ctx.fillStyle = '#888';
+        ctx.arc(x, y, r + 3, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
         ctx.fill();
-        ctx.strokeStyle = '#555';
-        ctx.lineWidth = 1.5;
+
+        // 2. Nail shank shadow (small offset ellipse)
+        ctx.save();
+        ctx.translate(x + 2, y + 3);
+        ctx.scale(1, 0.4);
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fill();
+        ctx.restore();
+
+        // 3. Nail head — radial gradient
+        const grad = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, 1, x, y, r);
+        grad.addColorStop(0, colorLight);
+        grad.addColorStop(0.5, colorMid);
+        grad.addColorStop(1, colorDark);
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // 4. Nail head rim (thin dark stroke)
+        ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+        ctx.lineWidth = 1;
         ctx.stroke();
+
+        // 5. Highlight glint
+        ctx.beginPath();
+        ctx.arc(x - r * 0.35, y - r * 0.35, r * 0.2, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fill();
       });
     }
 
@@ -651,6 +801,7 @@
               restitution: 0.7,
               label: 'nail',
             });
+            nail.playerIndex = playerIdx;
             Composite.add(world, nail);
           });
         });
@@ -761,10 +912,11 @@
       }
 
       if (magnitude > 0) {
-        const power = magnitude / CONFIG.MAX_DRAG_DISTANCE;
+        const power = Math.min(magnitude / CONFIG.MAX_DRAG_DISTANCE, 1.0);
+        const speed = power * CONFIG.MAX_SPEED;
         const velocity = {
-          x: (aimVector.x / magnitude) * power * CONFIG.MAX_SPEED,
-          y: (aimVector.y / magnitude) * power * CONFIG.MAX_SPEED,
+          x: (aimVector.x / magnitude) * speed,
+          y: (aimVector.y / magnitude) * speed,
         };
         Body.setVelocity(marble, velocity);
         STATE.marbleDirty = true;
