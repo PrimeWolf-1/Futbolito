@@ -838,7 +838,43 @@
         Body.set(marble, 'frictionAir', 0.015);
         STATE.droppingContactHandled = false;
       },
+
+      onGoal(scoringPlayer) {
+        if (STATE.celebrationActive) return; // prevent double-trigger
+        STATE.scores[scoringPlayer - 1]++;
+        // Update scoreboard immediately
+        document.getElementById('scoreboard').textContent =
+          `${STATE.playerNames[0]} ${STATE.scores[0]} — ${STATE.playerNames[1]} ${STATE.scores[1]}`;
+        // Trigger celebration (stub until item 6)
+        Celebration.trigger(scoringPlayer);
+        // Check win condition (item 7)
+        if (STATE.scores[scoringPlayer - 1] >= 3) {
+          STATE.pendingWin = scoringPlayer;
+        }
+      },
     };
+
+    // ─────────────────────────────────────────────
+    // Celebration — stub (item 6 will implement fully)
+    // ─────────────────────────────────────────────
+    const Celebration = {
+      trigger(player) {}
+    };
+
+    // ─────────────────────────────────────────────
+    // Goal detection — collision event listener
+    // ─────────────────────────────────────────────
+    Matter.Events.on(engine, 'collisionStart', (event) => {
+      event.pairs.forEach(pair => {
+        const labels = [pair.bodyA.label, pair.bodyB.label];
+        if (labels.includes('marble') && labels.includes('goal-p1')) {
+          Game.onGoal(2); // P2 scores when marble enters P1's goal (left end)
+        }
+        if (labels.includes('marble') && labels.includes('goal-p2')) {
+          Game.onGoal(1); // P1 scores when marble enters P2's goal (right end)
+        }
+      });
+    });
 
     // ─────────────────────────────────────────────
     // Slingshot — mouse input handlers
