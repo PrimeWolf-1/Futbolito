@@ -485,6 +485,11 @@
     };
 
     // ─────────────────────────────────────────────
+    // Frame counter — incremented each game loop tick, used by BirdDrop
+    // ─────────────────────────────────────────────
+    let frameCount = 0;
+
+    // ─────────────────────────────────────────────
     // Formations — normalized [0,1] coords per player half
     // ─────────────────────────────────────────────
     const Formations = {
@@ -1041,7 +1046,97 @@
         ctx.restore();
       });
     }
-    function drawBird()        {}
+    function drawBird() {
+      if (!STATE.birdActive) return;
+
+      const bx = STATE.bird.x;
+      const by = STATE.bird.y;
+      const frame = STATE.birdFrame;
+
+      ctx.save();
+      ctx.fillStyle = '#1a1a1a';
+      ctx.strokeStyle = '#1a1a1a';
+      ctx.lineWidth = 1.5;
+
+      // Bird body
+      ctx.beginPath();
+      ctx.ellipse(bx, by, 10, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Head
+      ctx.beginPath();
+      ctx.arc(bx + 10, by - 2, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Beak
+      ctx.beginPath();
+      ctx.moveTo(bx + 13, by - 2);
+      ctx.lineTo(bx + 19, by - 1);
+      ctx.lineTo(bx + 13, by);
+      ctx.closePath();
+      ctx.fill();
+
+      // Wings (frame 0 = level, frame 1 = raised)
+      const wingY = frame === 0 ? by - 2 : by - 10;
+      const wingTipY = frame === 0 ? by + 6 : by - 6;
+
+      // Left wing
+      ctx.beginPath();
+      ctx.moveTo(bx, by - 2);
+      ctx.quadraticCurveTo(bx - 12, wingY, bx - 20, wingTipY);
+      ctx.quadraticCurveTo(bx - 10, by + 2, bx, by + 2);
+      ctx.closePath();
+      ctx.fill();
+
+      // Right wing (smaller, partially hidden)
+      ctx.beginPath();
+      ctx.moveTo(bx, by - 2);
+      ctx.quadraticCurveTo(bx + 6, wingY - 3, bx + 10, wingTipY - 4);
+      ctx.quadraticCurveTo(bx + 6, by, bx, by + 1);
+      ctx.closePath();
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fill();
+
+      // Tail feathers
+      ctx.beginPath();
+      ctx.moveTo(bx - 9, by);
+      ctx.lineTo(bx - 18, by - 4);
+      ctx.lineTo(bx - 9, by + 1);
+      ctx.lineTo(bx - 18, by + 3);
+      ctx.lineTo(bx - 9, by + 2);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fill();
+
+      ctx.restore();
+
+      // Draw dropping if it exists
+      if (STATE.dropping) {
+        const dx = STATE.dropping.x;
+        const dy = STATE.dropping.y;
+
+        // Splat shape — irregular blob
+        ctx.save();
+        ctx.fillStyle = '#8ab82a'; // greenish-yellow
+        ctx.beginPath();
+        ctx.ellipse(dx, dy, 9, 7, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Splat details — darker center
+        ctx.fillStyle = '#6a9a18';
+        ctx.beginPath();
+        ctx.ellipse(dx - 1, dy + 1, 5, 4, -0.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Small splatter drops around it (radii stored to avoid per-frame flicker)
+        ctx.fillStyle = '#8ab82a';
+        STATE.dropping.splats.forEach(s => {
+          ctx.beginPath();
+          ctx.arc(dx + s.ox, dy + s.oy, s.r, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.restore();
+      }
+    }
 
     // ─────────────────────────────────────────────
     // Game loop
@@ -1049,8 +1144,26 @@
     function gameLoop() {
       if (!Game._loopRunning) return;
 
+      // Increment global frame counter
+      frameCount++;
+
       // Update physics
       Engine.update(engine, 1000 / 60);
+
+      // Update bird
+      BirdDrop.update();
+
+      // Bird drop marble interaction
+      if (STATE.dropping) {
+        const dist = Math.sqrt(
+          Math.pow(marble.position.x - STATE.dropping.x, 2) +
+          Math.pow(marble.position.y - STATE.dropping.y, 2)
+        );
+        if (dist < 25 && !STATE.droppingContactHandled) {
+          Matter.Body.set(marble, 'frictionAir', 0.06); // 4x normal drag
+          STATE.droppingContactHandled = true;
+        }
+      }
 
       // Speed cap
       const vel = marble.velocity;
@@ -1285,6 +1398,66 @@
     };
 
     // ─────────────────────────────────────────────
+    // BirdDrop — random bird flies across and drops on the field
+    // ─────────────────────────────────────────────
+    const BirdDrop = {
+      trigger() {
+        STATE.birdActive = true;
+        STATE.birdFrame = 0;
+        STATE.bird = {
+          x: -40,
+          y: 60 + Math.random() * (CONFIG.CANVAS_HEIGHT - 120),
+          hasDropped: false
+        };
+        STATE.dropping = null;
+        STATE.droppingContactHandled = false;
+      },
+
+      update() {
+        if (!STATE.birdActive) return;
+
+        STATE.bird.x += 3.5;
+
+        // Wing flap — toggle every 12 frames
+        if (typeof frameCount !== 'undefined' && frameCount % 12 === 0) {
+          STATE.birdFrame = 1 - STATE.birdFrame;
+        }
+
+        // Drop at ~40% across canvas
+        if (STATE.bird.x > CONFIG.CANVAS_WIDTH * 0.4 && !STATE.bird.hasDropped) {
+          STATE.bird.hasDropped = true;
+          STATE.dropping = {
+            x: STATE.bird.x,
+            y: STATE.bird.y + 20,
+            splats: [[-12,-3],[10,-5],[-8,8],[12,4],[0,-10]].map(([ox,oy]) => ({
+              ox, oy, r: 2 + Math.random() * 2
+            }))
+          };
+
+          // Check if dropping lands on marble
+          const dist = Math.sqrt(
+            Math.pow(marble.position.x - STATE.dropping.x, 2) +
+            Math.pow(marble.position.y - STATE.dropping.y, 2)
+          );
+          if (dist < marble.circleRadius + 8) {
+            STATE.marbleDirty = true;
+          }
+
+          // Dropping disappears after 3 seconds
+          if (STATE.droppingTimer) clearTimeout(STATE.droppingTimer);
+          STATE.droppingTimer = setTimeout(() => {
+            STATE.dropping = null;
+          }, 3000);
+        }
+
+        // Bird exits screen
+        if (STATE.bird.x > CONFIG.CANVAS_WIDTH + 40) {
+          STATE.birdActive = false;
+        }
+      }
+    };
+
+    // ─────────────────────────────────────────────
     // Goal detection — collision event listener
     // ─────────────────────────────────────────────
     Matter.Events.on(engine, 'collisionStart', (event) => {
@@ -1490,6 +1663,18 @@
 
     Setup.init();
     Intro.start();
+
+    // Bird drop interval — every 5 seconds, randomly trigger if game is live
+    setInterval(() => {
+      if (!STATE.birdActive && !STATE.celebrationActive && Game._loopRunning) {
+        const vel = marble.velocity;
+        const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y);
+        const marbleIsMoving = speed > 0.3;
+        if (marbleIsMoving && Math.random() < 0.08) {
+          BirdDrop.trigger();
+        }
+      }
+    }, 5000);
 
     // Play Again — reset game and return to setup with names pre-filled
     document.getElementById('play-again').addEventListener('click', () => {
