@@ -208,6 +208,223 @@
     canvas.height = CONFIG.CANVAS_HEIGHT;
     const ctx = canvas.getContext('2d');
 
+    // ─────────────────────────────────────────────
+    // Physics engine — Matter.js
+    // ─────────────────────────────────────────────
+    const { Engine, Bodies, Body, Composite, Events } = Matter;
+
+    const engine = Engine.create();
+    engine.gravity.y = 0; // top-down view, no gravity
+    const world = engine.world;
+
+    // Walls — placed just outside canvas edges so marble bounces off internal border
+    const wallTop    = Bodies.rectangle(CONFIG.CANVAS_WIDTH / 2, -10,           CONFIG.CANVAS_WIDTH + 40, 20, { isStatic: true, restitution: 0.6, label: 'wall-top' });
+    const wallBottom = Bodies.rectangle(CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT + 10, CONFIG.CANVAS_WIDTH + 40, 20, { isStatic: true, restitution: 0.6, label: 'wall-bottom' });
+    const wallLeft   = Bodies.rectangle(-20, CONFIG.CANVAS_HEIGHT / 2,          20, CONFIG.CANVAS_HEIGHT + 40, { isStatic: true, restitution: 0.6, label: 'wall-left' });
+    const wallRight  = Bodies.rectangle(CONFIG.CANVAS_WIDTH + 20, CONFIG.CANVAS_HEIGHT / 2, 20, CONFIG.CANVAS_HEIGHT + 40, { isStatic: true, restitution: 0.6, label: 'wall-right' });
+
+    // Goal sensors — just inside each goal opening
+    const goalP1 = Bodies.rectangle(8, CONFIG.CANVAS_HEIGHT / 2, 20, 60, { isStatic: true, isSensor: true, label: 'goal-p1' });
+    const goalP2 = Bodies.rectangle(892, CONFIG.CANVAS_HEIGHT / 2, 20, 60, { isStatic: true, isSensor: true, label: 'goal-p2' });
+
+    // Marble — exposed globally for console verification
+    const marble = Bodies.circle(CONFIG.CANVAS_WIDTH / 2, CONFIG.CANVAS_HEIGHT / 2, 12, {
+      restitution: 0.75,
+      frictionAir: 0.015,
+      label: 'marble',
+    });
+
+    // Hardcoded test nails — 4-3-3 formation on left half only (item 2 test only)
+    const Formations = {
+      "4-3-3": [
+        { x: 0.1, y: 0.5 },
+        { x: 0.3, y: 0.2 }, { x: 0.3, y: 0.4 }, { x: 0.3, y: 0.6 }, { x: 0.3, y: 0.8 },
+        { x: 0.55, y: 0.25 }, { x: 0.55, y: 0.5 }, { x: 0.55, y: 0.75 },
+        { x: 0.75, y: 0.2 }, { x: 0.75, y: 0.5 }, { x: 0.75, y: 0.8 },
+      ],
+    };
+
+    const halfWidth = CONFIG.CANVAS_WIDTH / 2;
+    const testNails = Formations["4-3-3"].map(pos => {
+      const px = halfWidth * pos.x; // left half only (player 1)
+      const py = CONFIG.CANVAS_HEIGHT * pos.y;
+      return Bodies.circle(px, py, 8, {
+        isStatic: true,
+        restitution: 0.7,
+        label: 'nail',
+      });
+    });
+
+    // Add all bodies to world
+    Composite.add(world, [wallTop, wallBottom, wallLeft, wallRight, goalP1, goalP2, marble, ...testNails]);
+
+    // Speed cap — enforced each frame
+    const MAX_SPEED = CONFIG.MAX_SPEED;
+
+    // ─────────────────────────────────────────────
+    // Renderer — draw functions
+    // ─────────────────────────────────────────────
+
+    function drawBoard() {
+      const W = CONFIG.CANVAS_WIDTH;
+      const H = CONFIG.CANVAS_HEIGHT;
+      const BORDER_INSET = 8;
+      const GOAL_WIDTH = 60;
+      const GOAL_HEIGHT = 20; // visual thickness of goal mouth cutout area
+
+      // Fill board with worn-felt green
+      ctx.fillStyle = '#2d5a1b';
+      ctx.fillRect(0, 0, W, H);
+
+      // Nylon string border — 4 lines 8px inside edges, off-white, lineWidth 3
+      ctx.strokeStyle = '#e8dcc8';
+      ctx.lineWidth = 3;
+
+      const goalCenterY = H / 2;
+      const goalHalf = GOAL_WIDTH / 2;
+
+      // Top border — full width
+      ctx.beginPath();
+      ctx.moveTo(BORDER_INSET, BORDER_INSET);
+      ctx.lineTo(W - BORDER_INSET, BORDER_INSET);
+      ctx.stroke();
+
+      // Bottom border — full width
+      ctx.beginPath();
+      ctx.moveTo(BORDER_INSET, H - BORDER_INSET);
+      ctx.lineTo(W - BORDER_INSET, H - BORDER_INSET);
+      ctx.stroke();
+
+      // Left border — with goal cutout gap
+      ctx.beginPath();
+      ctx.moveTo(BORDER_INSET, BORDER_INSET);
+      ctx.lineTo(BORDER_INSET, goalCenterY - goalHalf);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(BORDER_INSET, goalCenterY + goalHalf);
+      ctx.lineTo(BORDER_INSET, H - BORDER_INSET);
+      ctx.stroke();
+
+      // Right border — with goal cutout gap
+      ctx.beginPath();
+      ctx.moveTo(W - BORDER_INSET, BORDER_INSET);
+      ctx.lineTo(W - BORDER_INSET, goalCenterY - goalHalf);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(W - BORDER_INSET, goalCenterY + goalHalf);
+      ctx.lineTo(W - BORDER_INSET, H - BORDER_INSET);
+      ctx.stroke();
+
+      // Goal mouth visual — draw a slightly darker rect inside the cutout so it reads as a pocket
+      ctx.fillStyle = '#1a3a0a';
+      // Left goal mouth
+      ctx.fillRect(0, goalCenterY - goalHalf, BORDER_INSET + 4, GOAL_WIDTH);
+      // Right goal mouth
+      ctx.fillRect(W - BORDER_INSET - 4, goalCenterY - goalHalf, BORDER_INSET + 4, GOAL_WIDTH);
+
+      // Center line — subtle dashed midfield line
+      ctx.save();
+      ctx.strokeStyle = 'rgba(232,220,200,0.2)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([8, 8]);
+      ctx.beginPath();
+      ctx.moveTo(W / 2, BORDER_INSET);
+      ctx.lineTo(W / 2, H - BORDER_INSET);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    function drawMarble() {
+      const pos = marble.position;
+      const r = 12;
+
+      // Trail effect (stub — marbleDirty logic added later in item 3+)
+      if (STATE.marbleDirty && STATE.marbleTrail.length > 0) {
+        STATE.marbleTrail.forEach((p, i) => {
+          const alpha = (i + 1) / STATE.marbleTrail.length * 0.35;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, r * 0.8, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(26, 58, 107, ${alpha})`;
+          ctx.fill();
+        });
+      }
+
+      // Radial gradient — glass effect
+      const grad = ctx.createRadialGradient(pos.x - 4, pos.y - 4, 1, pos.x, pos.y, r);
+      grad.addColorStop(0, 'rgba(255,255,255,0.95)');
+      grad.addColorStop(0.3, 'rgba(180,210,255,0.8)');
+      grad.addColorStop(0.7, '#3a6fcc');
+      grad.addColorStop(1, '#1a3a6b');
+
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Subtle specular rim
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    function drawNails() {
+      // Draws all nail bodies as grey circles
+      const bodies = Composite.allBodies(world);
+      bodies.forEach(body => {
+        if (body.label !== 'nail') return;
+        const pos = body.position;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 8, 0, Math.PI * 2);
+        ctx.fillStyle = '#888';
+        ctx.fill();
+        ctx.strokeStyle = '#555';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+    }
+
+    // Stub functions — implemented in later items
+    function drawAimLine()     {}
+    function drawIdleGlow()    {}
+    function drawCelebration() {}
+    function drawBird()        {}
+
+    // ─────────────────────────────────────────────
+    // Game loop
+    // ─────────────────────────────────────────────
+    function gameLoop() {
+      // Update physics
+      Engine.update(engine, 1000 / 60);
+
+      // Speed cap
+      const vel = marble.velocity;
+      const speed = Math.sqrt(vel.x ** 2 + vel.y ** 2);
+      if (speed > MAX_SPEED) {
+        const scale = MAX_SPEED / speed;
+        Body.setVelocity(marble, { x: vel.x * scale, y: vel.y * scale });
+      }
+
+      // Clear and redraw
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      drawBoard();
+      drawNails();
+      drawMarble();
+      drawAimLine();
+      drawIdleGlow();
+      drawCelebration();
+      drawBird();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Show game screen and start loop immediately (for item 2 testing)
+    Screens.show('screen-game');
+    gameLoop();
+
   </script>
 </body>
 </html>
