@@ -71,3 +71,24 @@
 **Active shaping:** Minimal — Rudy drove direction in /scope, /prd, and /spec but in /checklist deferred entirely to the agent. The sequencing logic, item breakdown, and checkpoint placement were all agent-generated and accepted without modification. The one material contribution: confirmed he wants Netlify deploy + live link for Devpost (influenced final item scope).
 
 **Submission planning:** Core story is clear — digital adaptation of a real Salvadoran street game, feels like a physical object not a video game. "Wow moment" is the board with full visual personality + goal celebration. GitHub repo does not yet exist (to be created in item 1). Netlify deploy confirmed. No demo video planned.
+
+## /build
+
+**Total items completed:** 10/10. All checklist items finished. Build is complete.
+
+**Build mode:** Autonomous. 10 items dispatched to subagents sequentially, each receiving full spec context. Checkpoints at items 4, 7, and 9 — Rudy verified with "Y" at each.
+
+**Checklist revisions during build:** None to the structure. One mid-build interruption after checkpoint 1: Rudy requested a visual overhaul before continuing past item 4. The interruption happened again after items 5-7 completed (the agent had already built them before seeing the message). Both visual overhaul passes were handled as additional subagent dispatches outside the checklist items, not as checklist revisions.
+
+**Visual overhaul passes (2 total):**
+- Pass 1 (after checkpoint 1, before item 5): Real nail rendering with radial gradient + cross-slot, team colors, field lines, nylon string border with 3-layer shadow/body/highlight, marble power boost (MAX_SPEED 18→30), felt grain texture via offscreen canvas.
+- Pass 2 (mid-build, after items 5-7): Full deep overhaul — cylindrical nail shafts with drop shadows, 5-layer glass marble, walnut wood frame (22px border) with grain lines, goal net structures with post caps and net grid, outdoor backyard gradient background, string border and field lines adjusted to new BORDER=22.
+
+**Checkpoint observations:**
+- Checkpoint 1 (after item 4): Rudy approved with "Y" but immediately requested visual overhaul. Core gameplay was working but board looked too flat/digital.
+- Checkpoint 2 (after item 7 — visual overhaul pass 2 done): Rudy approved with "Y." Full match lifecycle working.
+- Checkpoint 3 (after item 9): Rudy approved with "Y." Feature-complete.
+
+**Deployment:** GitHub repo created at github.com/PrimeWolf-1/Futbolito. Netlify drag-and-drop deploy confirmed live. Devpost submission completed.
+
+**Overall:** Build went smoothly. No broken items, no checklist rework needed. The main friction point was visual fidelity — the "physical object you can reach through the screen" bar required two overhaul passes to meet. Rudy was clear about what he wanted and called it out at the right moment both times. The codebase is a single `futbolito.html` file with embedded CSS and JS, ~1500+ lines, fully functional.

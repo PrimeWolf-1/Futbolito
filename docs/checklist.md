@@ -87,7 +87,7 @@
 
 ---
 
-- [ ] **10. Netlify deploy + Devpost submission**
+- [x] **10. Netlify deploy + Devpost submission**
   Spec ref: `prd.md > What We're Building`
   What to build: Confirm GitHub repo is current — commit any remaining changes, push `futbolito.html` and `docs/` folder. Deploy: drag `futbolito.html` onto `app.netlify.com/drop` → copy the live URL. Then fill out Devpost submission: project name "Futbolito", tagline (e.g. "The street game from the neighborhood, digitized"), project story using `scope.md` and `prd.md` as source — explain what it is, why it matters, what you learned building it with spec-driven development. Add built-with tags: HTML, CSS, JavaScript, Matter.js, Netlify. Screenshot the board, the celebration moment, and the win screen for the image gallery. Upload `docs/` folder artifacts (scope, PRD, spec, checklist) as supplemental files. Link the GitHub repo. Link the Netlify URL. Review all fields and submit.
   Acceptance: GitHub repo is public and up to date. Netlify URL is live — game loads and is fully playable in an incognito window. Devpost submission has green "Submitted" badge, all required fields complete, screenshots showing the board and celebration moment, and both the repo and live URL linked.
