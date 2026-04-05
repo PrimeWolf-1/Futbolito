@@ -264,24 +264,54 @@
 
     /* ── Win Screen ── */
     #screen-win {
-      flex-direction: column;
+      background: #1a1a1a;
       align-items: center;
       justify-content: center;
-      background: #1a1a1a;
     }
-
-    #screen-win h2 {
-      font-size: clamp(2rem, 6vw, 4rem);
-      letter-spacing: 0.12em;
-      color: #f0e8d0;
+    .win-content {
+      text-align: center;
+      color: #fff;
+    }
+    .win-trophy {
+      font-size: 4rem;
+      margin-bottom: 12px;
+    }
+    #win-name {
+      font-size: 3.5rem;
+      font-weight: 900;
+      font-family: Impact, sans-serif;
+      color: #f4a261;
+      letter-spacing: 4px;
       text-transform: uppercase;
-      margin-bottom: 1rem;
     }
-
-    #screen-win p {
-      font-size: 1.2rem;
-      color: #a08060;
-      letter-spacing: 0.1em;
+    .win-label {
+      font-size: 1rem;
+      letter-spacing: 6px;
+      color: #aaa;
+      margin: 8px 0 16px;
+      font-family: monospace;
+    }
+    #win-score {
+      font-size: 2rem;
+      font-family: monospace;
+      letter-spacing: 4px;
+      color: #fff;
+      margin-bottom: 32px;
+    }
+    #play-again {
+      background: #2d5a1b;
+      color: #fff;
+      border: 2px solid #d4c9a8;
+      padding: 12px 36px;
+      font-size: 1.1rem;
+      font-family: monospace;
+      letter-spacing: 3px;
+      cursor: pointer;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    #play-again:hover {
+      background: #3d7a2b;
     }
   </style>
 </head>
@@ -342,8 +372,13 @@
 
   <!-- Win Screen -->
   <div id="screen-win" class="screen">
-    <h2>Winner!</h2>
-    <p>Final score goes here</p>
+    <div class="win-content">
+      <div class="win-trophy">🏆</div>
+      <div id="win-name">Winner</div>
+      <div class="win-label">WINS THE MATCH</div>
+      <div id="win-score">0 — 0</div>
+      <button id="play-again">Play Again</button>
+    </div>
   </div>
 
   <script>
@@ -912,7 +947,44 @@
       },
 
       triggerWin(winner) {
-        // stub — implemented in item 7
+        const winnerName = STATE.playerNames[winner - 1];
+        const finalScore = `${STATE.playerNames[0]} ${STATE.scores[0]} — ${STATE.playerNames[1]} ${STATE.scores[1]}`;
+        document.getElementById('win-name').textContent = winnerName;
+        document.getElementById('win-score').textContent = finalScore;
+        Screens.show('screen-win');
+      },
+
+      reset() {
+        // Stop the game loop
+        Game._loopRunning = false;
+
+        // Remove all nail bodies (keep marble, walls, and goal sensors)
+        const toRemove = Composite.allBodies(world).filter(b => b.label === 'nail');
+        toRemove.forEach(b => Composite.remove(world, b));
+
+        // Reset marble position and velocity
+        Body.setPosition(marble, { x: CONFIG.CANVAS_WIDTH / 2, y: CONFIG.CANVAS_HEIGHT / 2 });
+        Body.setVelocity(marble, { x: 0, y: 0 });
+
+        // Ensure marble is in the world (in case it was removed)
+        if (!Composite.allBodies(world).includes(marble)) {
+          Composite.add(world, marble);
+        }
+
+        // Reset scores and all state
+        STATE.scores = [0, 0];
+        STATE.celebrationActive = false;
+        STATE.confettiParticles = [];
+        STATE.nailJumpActive = false;
+        STATE.celebrationTimer = null;
+        STATE.pendingWin = null;
+        STATE.birdActive = false;
+        STATE.dropping = null;
+        STATE.marbleDirty = false;
+        STATE.marbleTrail = [];
+        STATE.idleGlowActive = false;
+        STATE.isDragging = false;
+        STATE.marbleWasMoving = false;
       },
     };
 
@@ -1159,6 +1231,21 @@
     });
 
     Setup.init();
+
+    // Play Again — reset game and return to setup with names pre-filled
+    document.getElementById('play-again').addEventListener('click', () => {
+      Game.reset();
+
+      // Repopulate name inputs from STATE
+      document.getElementById('player1-name').value = STATE.playerNames[0];
+      document.getElementById('player2-name').value = STATE.playerNames[1];
+
+      // Reset formation selections
+      document.querySelectorAll('.formation-card').forEach(c => c.classList.remove('selected'));
+      Setup.selectedFormations = [null, null];
+
+      Screens.show('screen-setup');
+    });
 
   </script>
 </body>
